@@ -29,4 +29,4 @@ class Post(Base):
     content: Mapped[str]=mapped_column(Text,nullable=False)
     date_posted: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False,default=lambda :datetime.now(UTC))
     user_id: Mapped[int]=mapped_column(ForeignKey("users.id"),nullable=False) 
-    author: Mapped[User]=relationship(back_populates="posts")
+    author: Mapped[User]=relationship(back_populates="posts") 

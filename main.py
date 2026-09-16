@@ -1,4 +1,4 @@
-from fastapi import FastAPI,HTTPException,status
+from fastapi import FastAPI,HTTPException,status,Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -6,34 +6,23 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from schemas import PostCreate,PostResponse
+from schemas import PostCreate,PostResponse,UserCreate,UserResponse
+from typing import Annotated
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+import models
+from database import Base,engine,get_db
+
+Base.metadata.create_all(bind=engine)
 app=FastAPI()
+app.mount("/static",StaticFiles(directory="static"),name="static")
+app.mount("/media",StaticFiles(directory="media"),name="media")
+
 
 templates=Jinja2Templates(directory="template")
 app.mount("/static",StaticFiles(directory="static"),name="static")
-posts: list[dict]=[
-    {
-        "id":1,
-        "author":"Mouad Naouaoui",
-        "title":"AI is taking over.",
-        "content":"AI is taking over the world, and we can do nothing about it.",
-        "date_posted":"April 21 , 2025",
-    },
-    {
-        "id":2,
-        "author":"Simo Naouaoui",
-        "title":"FastAPI is Awesome",
-        "content":"This framework is really easy to use and super fast.",
-        "date_posted":"April 20,2025",
-    },
-    {
-        "id":3,
-        "author":"Ayoub Naouaoui",
-        "title":"Python is Great for Web Development",
-        "content":"Python is a great language for web development, and FastAPI makes it even better.",
-        "date_posted":"April 21 , 2025",
-    },
-]
+
 
 @app.get("/",include_in_schema=False,name="home")
 @app.get("/posts",include_in_schema=False,name="posts")
@@ -49,6 +38,22 @@ def post_page(request:Request ,post_id:int):
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
+@app.post("/api/users",response_model=UserResponse,status_code=status.HTTP_201_CREATED,)
+def create_user(user:UserCreate,db:Annotated[Session,Depends(get_db)]):
+    result=db.execute(select(models.User).where(models.User.username==user.username))
+    existing_user=result.scalars().first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists"),
+    result=db.execute(select(models.User).where(models.User.email==user.email),)
+    existing_email=result.scalars().first()
+    if existing_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists",)
+
+    new_user=models.User(username=user.username,email=user.email)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
 @app.get("/api/posts",response_model=list[PostResponse])
 def get_posts():
     return posts
